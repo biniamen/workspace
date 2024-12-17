@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<proxy name="PinChangeProxy" startOnLoad="true" transports="http https" xmlns="http://ws.apache.org/ns/synapse">
+    <target>
+        <inSequence>
+            <!-- Log the incoming request -->
+            <log level="full">
+                <property expression="json-eval($)" name="Incoming Request Payload"/>
+            </log>
+            <!-- Extract Parameters -->
+            <property expression="json-eval($.body.pan)" name="pan" scope="default" type="STRING"/>
+            <property expression="json-eval($.body.accountNum)" name="account_number" scope="default" type="STRING"/>
+            <property expression="json-eval($.body.customerID)" name="customer_id" scope="default" type="STRING"/>
+            <property expression="json-eval($.body.oldPin)" name="old_pin" scope="default" type="STRING"/>
+            <property expression="json-eval($.body.newPin)" name="new_pin" scope="default" type="STRING"/>
+            <property expression="json-eval($.header.idmsg)" name="idmsg" scope="default" type="STRING"/>
+            <property expression="json-eval($.header.mac)" name="mac" scope="default" type="STRING"/>
+            <!-- Hashing the pins (Placeholder) -->
+            <property expression="fn:hash($ctx:old_pin)" name="old_pin_hash" scope="default" type="STRING"/>
+            <property expression="fn:hash($ctx:new_pin)" name="new_pin_hash" scope="default" type="STRING"/>
+            <!-- Validate Old PIN -->
+            <send receive="validateOldPinResponse">
+                <endpoint key="ValidateOldPinEndpoint"/>
+            </send>
+        </inSequence>
+        <outSequence/>
+        <faultSequence>
+            <log level="full">
+                <property name="error" value="Fault detected in PinChangeProxy"/>
+                <property expression="$fault" name="ERROR_DETAIL"/>
+            </log>
+            <payloadFactory media-type="json">
+                <format>
+                    {
+                        "status": {
+                            "errorcode": "500",
+                            "errordesc": "Internal Server Error. Please try again later."
+                        }
+                    }
+                </format>
+                <args/>
+            </payloadFactory>
+            <respond/>
+        </faultSequence>
+    </target>
+</proxy>

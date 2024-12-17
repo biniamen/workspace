@@ -1,0 +1,38 @@
+<data name="PinChangeService" transports="http https">
+    <config id="PinChangeDBConfig">
+        <property name="driverClassName">com.mysql.jdbc.Driver</property>
+        <property name="url">jdbc:mysql://localhost:3306/atm_project</property>
+        <property name="username">root</property>
+        <property name="password"/>
+    </config>
+
+    <!-- Validate Old PIN -->
+    <query id="ValidateOldPin" useConfig="PinChangeDBConfig">
+        <sql>
+            SELECT COUNT(*) AS is_valid
+            FROM PIN_CHANGE_REQUESTS
+            WHERE pan = :pan AND old_pin_hash = :old_pin_hash
+        </sql>
+        <param name="pan" sqlType="STRING"/>
+        <param name="old_pin_hash" sqlType="STRING"/>
+        <result outputType="json">
+            {
+                "isValid": "$is_valid"
+            }
+        </result>
+    </query>
+
+    <!-- Other queries remain unchanged -->
+    <!-- Store PIN Change Request -->
+    <query id="StorePinChangeRequest" useConfig="PinChangeDBConfig">
+        <sql>
+            INSERT INTO PIN_CHANGE_REQUESTS (pan, account_number, customer_id, old_pin_hash, new_pin_hash, status)
+            VALUES (:pan, :account_number, :customer_id, :old_pin_hash, :new_pin_hash, 'PENDING')
+        </sql>
+        <param name="pan" sqlType="STRING"/>
+        <param name="account_number" sqlType="STRING"/>
+        <param name="customer_id" sqlType="STRING"/>
+        <param name="old_pin_hash" sqlType="STRING"/>
+        <param name="new_pin_hash" sqlType="STRING"/>
+    </query>
+</data>

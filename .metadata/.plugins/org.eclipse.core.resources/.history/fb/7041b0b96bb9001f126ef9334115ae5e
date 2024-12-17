@@ -1,0 +1,270 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<proxy name="AtmPosLimitProxy" startOnLoad="true" transports="http https" xmlns="http://ws.apache.org/ns/synapse">
+    <target>
+        <inSequence>
+            <!-- Log the full incoming request body -->
+            <!-- If the new limit is greater than 5000, set an error code and description -->
+            <!-- If the new limit is valid, create a payload for the backend request -->
+            <!-- If not POST, check if it's PUT -->
+            <!-- If the method is neither POST nor PUT, return a 405 error -->
+            <!-- If PUT, call the 'updateSetLimit' endpoint -->
+            <!-- If POST, call the 'pss' endpoint -->
+            <!-- If the PAN does not match the returned PAN from DB, return an invalid PAN error -->
+            <!-- If the new limit isn't what we set, return a service unavailable error -->
+            <!-- If the PAN matches and the limit is updated correctly, respond based on channel type -->
+            <!-- Otherwise, set a success message for ATM usage limit -->
+            <!-- If channel is POS, set a success message for POS usage limit -->
+            <!-- If error, format an error response, call the endpoint, and then return a JSON error payload -->
+            <!-- If success (errorcode=00000), format the success response and send it -->
+            <log description="logRequest" level="full">
+                <property expression="json-eval($)" name="requestBody"/>
+            </log>
+            <!-- Log the authorization header from the transport -->
+            <log description="authorizationHeader" level="full">
+                <property expression="get-property('transport','Authorization')" name="authorHeader"/>
+            </log>
+            <!-- Extract values from the incoming JSON request and store them as properties -->
+            <property description="new limit" expression="json-eval($.body.newLimit)" name="newLimit" scope="default" type="STRING"/>
+            <property description="pan" expression="json-eval($.body.pan)" name="pan" scope="default" type="STRING"/>
+            <property description="mac" expression="json-eval($.header.mac)" name="mac" scope="default" type="STRING"/>
+            <property description="idmsg" expression="json-eval($.header.idmsg)" name="idmsg" scope="default" type="STRING"/>
+            <property description="channelType" expression="json-eval($.body.channelType)" name="channel_type" scope="default" type="STRING"/>
+            <property description="accountNum" expression="json-eval($.body.accountNum)" name="accountNum" scope="default" type="STRING"/>
+            <property description="customerID" expression="json-eval($.body.customerID)" name="customerID" scope="default" type="STRING"/>
+            <!-- Validate that the newLimit is less than or equal to 5000 -->
+            <filter xpath="number(get-property('newLimit')) &lt;= 5000">
+                <then>
+                    <payloadFactory description="formatingRequest" media-type="json">
+                        <format>
+                            {
+                                "withdrawLimitSet": {
+                                    "pan": "$1",
+                                    "accountNum": "$2",
+                                    "customerID": "$3",
+                                    "channelType": "$4",
+                                    "newLimit": $5,
+                                    "idmsg": "$6",
+                                    "mac": "$7"
+                                }
+                            }
+                        </format>
+                        <args>
+                            <arg evaluator="json" expression="$.body.pan"/>
+                            <arg evaluator="json" expression="$.body.accountNum"/>
+                            <arg evaluator="json" expression="$.body.customerID"/>
+                            <arg evaluator="json" expression="$.body.channelType"/>
+                            <arg evaluator="json" expression="$.body.newLimit"/>
+                            <arg evaluator="json" expression="$.header.idmsg"/>
+                            <arg evaluator="json" expression="$.header.mac"/>
+                        </args>
+                        <!-- Map arguments from the original request JSON to the formatted payload -->
+                    </payloadFactory>
+                    <!-- Determine the HTTP method used by the client request -->
+                    <property expression="get-property('axis2', 'HTTP_METHOD')" name="requestMethod" scope="default" type="STRING"/>
+                    <!-- Depending on whether the request is POST or PUT, call different endpoints -->
+                    <filter regex="POST" source="get-property('requestMethod')">
+                        <then>
+                            <call>
+                                <endpoint key="pss"/>
+                            </call>
+                        </then>
+                        <else>
+                            <filter regex="PUT" source="get-property('requestMethod')">
+                                <then>
+                                    <call>
+                                        <endpoint key="updateSetLimit"/>
+                                    </call>
+                                </then>
+                                <else>
+                                    <log level="full">
+                                        <property name="unsupportedMethod" value="Unsupported HTTP Method"/>
+                                    </log>
+                                    <payloadFactory description="unsupported http method response" media-type="json">
+                                        <format>
+                                            {
+                                                "error": {
+                                                    "code": 405,
+                                                    "message": "The requested HTTP method is not allowed for the resource."
+                                                }
+                                            }
+                                        </format>
+                                        <args/>
+                                    </payloadFactory>
+                                    <respond/>
+                                </else>
+                            </filter>
+                        </else>
+                    </filter>
+                    <!-- Set the PAN property as a URI variable for the next call -->
+                    <property expression="get-property('pan')" name="uri.var.pan" scope="default" type="STRING"/>
+                    <!-- Call a service to validate the PAN and get the current limit from the database -->
+                    <call>
+                        <endpoint>
+                            <http method="get" uri-template="http://localhost:8290/services/AtmPosWithdrawalLimit/isValid?pan={uri.var.pan}">
+                                <suspendOnFailure>
+                                    <initialDuration>-1</initialDuration>
+                                    <progressionFactor>-1</progressionFactor>
+                                    <maximumDuration>0</maximumDuration>
+                                </suspendOnFailure>
+                                <markForSuspension>
+                                    <retriesBeforeSuspension>0</retriesBeforeSuspension>
+                                </markForSuspension>
+                            </http>
+                        </endpoint>
+                    </call>
+                    <!-- Log the response from the isValid call -->
+                    <log level="full"/>
+                    <!-- Extract information from the response about the pan and the new limit from database -->
+                    <property description="panFromDb" expression="json-eval($.change.pan)" name="panFromDb" scope="default" type="STRING"/>
+                    <property description="newLimitFromDb" expression="json-eval($.change.newLimit)" name="newLimitFromDb" scope="default" type="STRING"/>
+                    <!-- Log the new limit fetched from the database -->
+                    <log>
+                        <property expression="get-property('newLimitFromDb')" name="cccc"/>
+                    </log>
+                    <!-- Compare the provided PAN and newLimit with what was returned from the DB -->
+                    <filter xpath="get-property('pan')=get-property('panFromDb')">
+                        <then>
+                            <filter xpath="get-property('newLimit')=get-property('newLimitFromDb')">
+                                <then>
+                                    <switch source="get-property('channel_type')">
+                                        <case regex="POS">
+                                            <property description="POS" name="errordesc" scope="default" type="STRING" value="POS usage limit successfully updated"/>
+                                        </case>
+                                        <default>
+                                            <property description="ATM" name="errordesc" scope="default" type="STRING" value="ATM Usage Limit Successfully Updated"/>
+                                        </default>
+                                    </switch>
+                                    <!-- Set a generic success error code -->
+                                    <property description="error code" name="errorcode" scope="default" type="STRING" value="00000"/>
+                                </then>
+                                <else>
+                                    <payloadFactory media-type="json">
+                                        <format>
+                                            {
+                                                "error": {
+                                                    "code": 503,
+                                                    "message": "The service is temporarily unavailable. Please try again later."
+                                                }
+                                            }
+                                        </format>
+                                        <args/>
+                                    </payloadFactory>
+                                    <respond description="res"/>
+                                </else>
+                            </filter>
+                        </then>
+                        <else>
+                            <payloadFactory description="pan is not correct" media-type="json">
+                                <format>
+                                    {
+                                        "error": {
+                                            "code": 401,
+                                            "message": "Invalid PAN provided."
+                                        }
+                                    }
+                                </format>
+                                <args/>
+                            </payloadFactory>
+                            <respond description="res"/>
+                        </else>
+                    </filter>
+                </then>
+                <else>
+                    <property description="error code" name="errorcode" scope="default" type="STRING" value="456"/>
+                    <property description="error description" name="errordesc" scope="default" type="STRING" value="invalid msgid"/>
+                </else>
+            </filter>
+            <!-- Based on the errorcode, decide how to respond -->
+            <filter regex="00000" source="get-property('errorcode')">
+                <then>
+                    <payloadFactory description="formattingResponse" media-type="json">
+                        <format>
+                            {
+                                "response":{
+                                    "pan":"$1",
+                                    "mac":"$2",
+                                    "errorcode":"$3",
+                                    "errordesc":"$4"
+                                }
+                            }
+                        </format>
+                        <args>
+                            <arg evaluator="xml" expression="get-property('pan')"/>
+                            <arg evaluator="xml" expression="get-property('mac')"/>
+                            <arg evaluator="xml" expression="get-property('errorcode')"/>
+                            <arg evaluator="xml" expression="get-property('errordesc')"/>
+                        </args>
+                    </payloadFactory>
+                    <log level="full"/>
+                    <send>
+                        <endpoint key="withdrawlimitresponse"/>
+                    </send>
+                </then>
+                <else>
+                    <payloadFactory description="formattingResponse" media-type="json">
+                        <format>
+                            {
+                                "response":{
+                                    "pan":"$1",
+                                    "mac":"$2",
+                                    "errorcode":"$3",
+                                    "errordesc":"$4"
+                                }
+                            }
+                        </format>
+                        <args>
+                            <arg evaluator="xml" expression="get-property('pan')"/>
+                            <arg evaluator="xml" expression="get-property('mac')"/>
+                            <arg evaluator="xml" expression="get-property('errorcode')"/>
+                            <arg evaluator="xml" expression="get-property('errordesc')"/>
+                        </args>
+                    </payloadFactory>
+                    <call>
+                        <endpoint key="withdrawlimitresponse"/>
+                    </call>
+                    <payloadFactory media-type="json">
+                        <format>
+                            {
+                                "header":{
+                                    "idmsg":"$1",
+                                    "mac":"$2"
+                                },
+                                "status":{
+                                    "errorcode":"$3",
+                                    "errordesc":"$4"
+                                }
+                            }
+                        </format>
+                        <args>
+                            <arg evaluator="xml" expression="get-property('idmsg')"/>
+                            <arg evaluator="xml" expression="get-property('mac')"/>
+                            <arg evaluator="xml" expression="get-property('errorcode')"/>
+                            <arg evaluator="xml" expression="get-property('errordesc')"/>
+                        </args>
+                    </payloadFactory>
+                    <property name="HTTP_SC" scope="axis2" type="STRING" value="456"/>
+                    <respond/>
+                </else>
+            </filter>
+        </inSequence>
+        <outSequence>
+            <!-- On successful outbound response, format a generic success payload -->
+            <payloadFactory description="success response" media-type="json">
+                <format>
+                    {
+                        "status":{
+                            "errorcode":"$1",
+                            "errordesc":"$2"
+                        }
+                    }
+                </format>
+                <args>
+                    <arg evaluator="xml" expression="get-property('errorcode')"/>
+                    <arg evaluator="xml" expression="get-property('errordesc')"/>
+                </args>
+            </payloadFactory>
+            <send/>
+        </outSequence>
+        <faultSequence/>
+    </target>
+</proxy>

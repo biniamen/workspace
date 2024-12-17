@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<proxy name="PinChangeProxy" startOnLoad="true" transports="http https" xmlns="http://ws.apache.org/ns/synapse">
+    <target>
+        <inSequence>
+            <!-- Log the incoming request -->
+            <log level="full">
+                <property expression="json-eval($)" name="Incoming_Request_Payload"/>
+            </log>
+            <!-- Extract request parameters -->
+            <property expression="json-eval($.body.pan)" name="pan" scope="default" type="STRING"/>
+            <property expression="json-eval($.body.accountNum)" name="account_number" scope="default" type="STRING"/>
+            <property expression="json-eval($.body.customerID)" name="customer_id" scope="default" type="STRING"/>
+            <property expression="json-eval($.body.oldPin)" name="old_pin" scope="default" type="STRING"/>
+            <property expression="json-eval($.body.newPin)" name="new_pin" scope="default" type="STRING"/>
+            <property expression="json-eval($.header.idmsg)" name="idmsg" scope="default" type="STRING"/>
+            <property expression="json-eval($.header.mac)" name="mac" scope="default" type="STRING"/>
+            <!-- Assign old_pin_hash and new_pin_hash directly from old_pin and new_pin -->
+            <property expression="get-property('old_pin')" name="old_pin_hash" scope="default" type="STRING"/>
+            <property expression="get-property('new_pin')" name="new_pin_hash" scope="default" type="STRING"/>
+            <!-- Set URI variables for the ValidateOldPinEndpoint -->
+            <property expression="$ctx:pan" name="uri.var.pan" scope="default" type="STRING"/>
+            <property expression="$ctx:old_pin_hash" name="uri.var.old_pin_hash" scope="default" type="STRING"/>
+            <!-- Validate Old PIN -->
+            <send>
+                <endpoint key="ValidateOldPinEndpoint"/>
+            </send>
+        </inSequence>
+        <outSequence>
+            <!-- Log the validation response -->
+            <!-- After update, respond with success message -->
+            <log level="full">
+                <property expression="json-eval($)" name="Validation_Response"/>
+            </log>
+            <!-- Extract isValid from the validation response -->
+            <property expression="json-eval($.Validation.isValid)" name="isValid" scope="default" type="STRING"/>
+            <!-- Check if old PIN is valid -->
+            <filter xpath="$ctx:isValid = '1'">
+                <then>
+                    <payloadFactory media-type="json">
+                        <format>
+                            {
+                                "status": "CONFIRMED",
+                                "pan": "$ctx:pan",
+                                "old_pin_hash": "$ctx:old_pin_hash",
+                                "new_pin_hash": "$ctx:new_pin_hash"
+                            }
+                        </format>
+                        <args/>
+                    </payloadFactory>
+                    <!-- If valid, prepare payload for updating the PIN -->
+                    <property expression="json-eval($.status)" name="uri.var.status" scope="default" type="STRING"/>
+                    <!-- Set parameters as query params for update call -->
+                    <property expression="json-eval($.pan)" name="uri.var.pan" scope="default" type="STRING"/>
+                    <property expression="json-eval($.old_pin_hash)" name="uri.var.old_pin_hash" scope="default" type="STRING"/>
+                    <property expression="json-eval($.new_pin_hash)" name="uri.var.new_pin_hash" scope="default" type="STRING"/>
+                    <send/>
+                    <!-- Call UpdatePinChangeRequestEndpoint -->
+                </then>
+                <else>
+                    <payloadFactory media-type="json">
+                        <format>
+                            {
+                                "status": {
+                                    "errorcode": "4444",
+                                    "errordesc": "Invalid old PIN."
+                                }
+                            }
+                        </format>
+                        <args/>
+                    </payloadFactory>
+                    <!-- If invalid old PIN, respond with error -->
+                    <respond/>
+                </else>
+            </filter>
+        </outSequence>
+        <faultSequence>
+            <log level="full">
+                <property name="error" value="Fault detected in PinChangeProxy"/>
+                <property expression="get-property('ERROR_MESSAGE')" name="ERROR_DETAIL"/>
+            </log>
+            <payloadFactory media-type="json">
+                <format>
+                    {
+                        "status": {
+                            "errorcode": "500",
+                            "errordesc": "Internal Server Error. Please try again later."
+                        }
+                    }
+                </format>
+                <args/>
+            </payloadFactory>
+            <respond/>
+        </faultSequence>
+    </target>
+</proxy>

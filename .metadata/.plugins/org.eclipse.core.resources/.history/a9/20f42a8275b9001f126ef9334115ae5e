@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<proxy name="PinChangeProxy" startOnLoad="true" transports="http https" xmlns="http://ws.apache.org/ns/synapse">
+    <target>
+        <inSequence>
+            <!-- Log the Request -->
+            <!-- Error Response -->
+            <!-- Call Backend for PIN Change -->
+            <log level="full">
+                <property expression="json-eval($)" name="Incoming Request"/>
+            </log>
+            <!-- Extract Parameters -->
+            <property expression="json-eval($.body.pan)" name="pan" scope="default" type="STRING"/>
+            <property expression="json-eval($.body.accountNum)" name="account_number" scope="default" type="STRING"/>
+            <property expression="json-eval($.body.customerID)" name="customer_id" scope="default" type="STRING"/>
+            <property expression="json-eval($.body.oldPin)" name="old_pin" scope="default" type="STRING"/>
+            <property expression="json-eval($.body.newPin)" name="new_pin" scope="default" type="STRING"/>
+            <property expression="json-eval($.header.idmsg)" name="idmsg" scope="default" type="STRING"/>
+            <property expression="json-eval($.header.mac)" name="mac" scope="default" type="STRING"/>
+            <!-- Validate Input -->
+            <filter xpath="boolean(get-property('pan')) and boolean(get-property('account_number')) and boolean(get-property('customer_id')) and boolean(get-property('old_pin')) and boolean(get-property('new_pin'))">
+                <then>
+                    <send>
+                        <endpoint>
+                            <http method="post" uri-template="https://backend-system/pin-change-api">
+                                <suspendOnFailure>
+                                    <initialDuration>2000</initialDuration>
+                                    <progressionFactor>1.5</progressionFactor>
+                                    <maximumDuration>60000</maximumDuration>
+                                </suspendOnFailure>
+                                <markForSuspension>
+                                    <retriesBeforeSuspension>3</retriesBeforeSuspension>
+                                </markForSuspension>
+                            </http>
+                        </endpoint>
+                    </send>
+                </then>
+                <else>
+                    <payloadFactory media-type="json">
+                        <format>
+                            {
+                                "status": {
+                                    "errorcode": "4444",
+                                    "errordesc": "Invalid Request. All fields are mandatory."
+                                }
+                            }
+                        </format>
+                        <args/>
+                    </payloadFactory>
+                    <respond/>
+                </else>
+            </filter>
+        </inSequence>
+        <outSequence>
+            <!-- Log the Response -->
+            <log level="full">
+                <property expression="get-property('RESPONSE_JSON')" name="Response"/>
+            </log>
+            <!-- Format Successful Response -->
+            <payloadFactory media-type="json">
+                <format>
+                    {
+                        "status": {
+                            "errorcode": "00000",
+                            "errordesc": "PIN change successful"
+                        }
+                    }
+                </format>
+                <args/>
+            </payloadFactory>
+            <send/>
+        </outSequence>
+        <faultSequence>
+            <payloadFactory media-type="json">
+                <format>
+                    {
+                        "status": {
+                            "errorcode": "4444",
+                            "errordesc": "PIN change Not successful"
+                        }
+                    }
+                </format>
+                <args/>
+            </payloadFactory>
+            <send/>
+        </faultSequence>
+    </target>
+</proxy>

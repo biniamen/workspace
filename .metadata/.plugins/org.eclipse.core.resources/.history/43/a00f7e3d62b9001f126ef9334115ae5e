@@ -1,0 +1,100 @@
+<data transports="http https" serviceGroup="" serviceNamespace="" name="AtmPosWithdrawalLimit">
+  <description />
+  <config id="AtmPosWL">
+    <property name="driverClassName">oracle.jdbc.OracleDriver</property>
+    <property name="url">jdbc:oracle:thin:@localhost:1521:wso2</property>
+    <property name="username">system</property>
+    <property name="password">12342461</property>
+  </config>
+  <resource method="GET" path="customer">
+    <description>customer</description>
+    <call-query href="userCredential" />
+  </resource>
+  <resource method="POST" path="setLimit">
+    <description />
+    <call-query href="settingLimit">
+      <with-param name="pan" query-param="pan" />
+      <with-param name="accountNum" query-param="accountNum" />
+      <with-param name="customerID" query-param="customerID" />
+      <with-param name="channelType" query-param="channelType" />
+      <with-param name="newLimit" query-param="newLimit" />
+      <with-param name="idmsg" query-param="idmsg" />
+      <with-param name="mac" query-param="mac" />
+    </call-query>
+  </resource>
+  <resource method="POST" path="response">
+    <description />
+    <call-query href="WithdrawalLimitSetResponse">
+      <with-param name="pan" query-param="pan" />
+      <with-param name="mac" query-param="mac" />
+      <with-param name="errorcode" query-param="errorcode" />
+      <with-param name="errordesc" query-param="errordesc" />
+    </call-query>
+  </resource>
+  <resource method="PUT" path="updateLimit">
+    <description />
+    <call-query href="updateWithdrawLimitID">
+      <with-param name="newLimit" query-param="newLimit" />
+      <with-param name="idmsg" query-param="idmsg" />
+      <with-param name="mac" query-param="mac" />
+      <with-param name="pan" query-param="pan" />
+      <with-param name="accountNum" query-param="accountNum" />
+      <with-param name="customerID" query-param="customerID" />
+      <with-param name="channelType" query-param="channelType" />
+    </call-query>
+  </resource>
+  <query id="userCredential" useConfig="AtmPosWL">
+    <sql>SELECT cust_username,cust_password FROM HB_CUSTOMERS</sql>
+    <result outputType="json">{
+"customers":{
+"customer":{
+"username":"$cust_username",
+"password":"$cust_password"
+}
+}
+}</result>
+  </query>
+  <query id="settingLimit" useConfig="AtmPosWL">
+    <sql>INSERT INTO atm_limit_settings (pan ,idmsg,mac,accountNum,customerID,channelType,newLimit) VALUES (:pan ,:idmsg,:mac,:accountNum,:customerID,:channelType,:newLimit)</sql>
+    <param type="IN" name="pan" paramType="SCALAR" sqlType="STRING" optional="false" />
+    <param type="IN" name="accountNum" paramType="SCALAR" sqlType="STRING" optional="false" />
+    <param type="IN" name="customerID" paramType="SCALAR" sqlType="STRING" optional="false" />
+    <param type="IN" name="channelType" paramType="SCALAR" sqlType="STRING" optional="false" />
+    <param type="IN" name="newLimit" paramType="SCALAR" sqlType="INTEGER" optional="false" />
+    <param type="IN" name="idmsg" paramType="SCALAR" sqlType="STRING" optional="false" />
+    <param type="IN" name="mac" paramType="SCALAR" sqlType="STRING" optional="false" />
+  </query>
+  <query id="WithdrawalLimitSetResponse" useConfig="AtmPosWL">
+    <sql>insert into withdrawlimit_response (pan,mac,errorcode,errordesc) VALUES (:pan,:mac,:errorcode,:errordesc)</sql>
+    <param type="IN" name="pan" paramType="SCALAR" sqlType="STRING" optional="false" />
+    <param type="IN" name="mac" paramType="SCALAR" sqlType="STRING" optional="false" />
+    <param type="IN" name="errorcode" paramType="SCALAR" sqlType="STRING" optional="false" />
+    <param type="IN" name="errordesc" paramType="SCALAR" sqlType="STRING" optional="false" />
+  </query>
+  <query id="updateWithdrawLimitID" useConfig="AtmPosWL" returnUpdatedRowCount="true">
+    <sql>UPDATE atm_limit_settings SET newLimit=:newLimit,idmsg=:idmsg,mac=:mac WHERE pan=:pan</sql>
+    <param type="IN" name="newLimit" paramType="SCALAR" sqlType="INTEGER" optional="false" />
+    <param type="IN" name="idmsg" paramType="SCALAR" sqlType="STRING" optional="false" />
+    <param type="IN" name="mac" paramType="SCALAR" sqlType="STRING" optional="false" />
+    <param type="IN" name="pan" paramType="SCALAR" sqlType="STRING" optional="false" />
+    <param type="IN" name="accountNum" paramType="SCALAR" sqlType="STRING" optional="false" />
+    <param type="IN" name="customerID" paramType="SCALAR" sqlType="STRING" optional="false" />
+    <param type="IN" name="channelType" paramType="SCALAR" sqlType="STRING" optional="false" />
+  </query>
+  <query id="changeValidId" useConfig="AtmPosWL">
+    <sql> SELECT newLimit,pan FROM atm_limit_settings WHERE pan=:pan</sql>
+    <param type="IN" name="pan" paramType="SCALAR" sqlType="STRING" optional="false" />
+    <result outputType="json">{
+"change":{
+"newLimit":"$newLimit",
+"pan":"$pan"
+}
+}</result>
+  </query>
+  <resource method="GET" path="isValid">
+    <description />
+    <call-query href="changeValidId">
+      <with-param name="pan" query-param="pan" />
+    </call-query>
+  </resource>
+</data>

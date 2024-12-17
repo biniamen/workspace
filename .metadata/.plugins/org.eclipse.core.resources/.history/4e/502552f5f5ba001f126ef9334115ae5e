@@ -1,0 +1,85 @@
+<data transports="http https" serviceNamespace="http://example.com/PinChangeService" name="PinChangeService">
+  <description>Data service for managing PIN change operations</description>
+
+  <!-- Database Configuration -->
+  <config id="PinChangeDBConfig">
+    <property name="driverClassName">com.mysql.jdbc.Driver</property>
+    <property name="url">jdbc:mysql://localhost:3306/atm_project</property>
+    <property name="username">root</property>
+    <property name="password">your_password</property>
+  </config>
+
+  <!-- Validate Old PIN -->
+  <query id="ValidateOldPin" useConfig="PinChangeDBConfig">
+    <sql>
+      SELECT COUNT(*) AS is_valid
+      FROM PIN_CHANGE_REQUESTS
+      WHERE pan = :pan AND old_pin_hash = :old_pin_hash
+    </sql>
+    <param name="pan" sqlType="STRING"/>
+    <param name="old_pin_hash" sqlType="STRING"/>
+    <result outputType="json">
+      {
+        "Validation": {
+          "isValid": "$is_valid"
+        }
+      }
+    </result>
+  </query>
+
+  <!-- Resource for Validate Old PIN -->
+  <resource path="/ValidateOldPin" method="GET">
+    <call-query href="ValidateOldPin">
+      <with-param name="pan" query-param="pan"/>
+      <with-param name="old_pin_hash" query-param="old_pin_hash"/>
+    </call-query>
+  </resource>
+
+  <!-- Store PIN Change Request -->
+  <query id="StorePinChangeRequest" useConfig="PinChangeDBConfig">
+    <sql>
+      INSERT INTO PIN_CHANGE_REQUESTS (pan, account_number, customer_id, old_pin_hash, new_pin_hash, status)
+      VALUES (:pan, :account_number, :customer_id, :old_pin_hash, :new_pin_hash, 'PENDING')
+    </sql>
+    <param name="pan" sqlType="STRING"/>
+    <param name="account_number" sqlType="STRING"/>
+    <param name="customer_id" sqlType="STRING"/>
+    <param name="old_pin_hash" sqlType="STRING"/>
+    <param name="new_pin_hash" sqlType="STRING"/>
+  </query>
+
+  <!-- Resource for Store PIN Change Request -->
+  <resource path="/StorePinChangeRequest" method="POST">
+    <call-query href="StorePinChangeRequest">
+      <with-param name="pan" query-param="pan"/>
+      <with-param name="account_number" query-param="account_number"/>
+      <with-param name="customer_id" query-param="customer_id"/>
+      <with-param name="old_pin_hash" query-param="old_pin_hash"/>
+      <with-param name="new_pin_hash" query-param="new_pin_hash"/>
+    </call-query>
+  </resource>
+
+  <!-- Update PIN Change Request -->
+  <query id="UpdatePinChangeRequest" useConfig="PinChangeDBConfig">
+    <sql>
+      UPDATE PIN_CHANGE_REQUESTS
+      SET status = :status, updated_at = CURRENT_TIMESTAMP
+      WHERE pan = :pan AND old_pin_hash = :old_pin_hash AND new_pin_hash = :new_pin_hash
+    </sql>
+    <param name="status" sqlType="STRING"/>
+    <param name="pan" sqlType="STRING"/>
+    <param name="old_pin_hash" sqlType="STRING"/>
+    <param name="new_pin_hash" sqlType="STRING"/>
+  </query>
+
+  <!-- Resource for Update PIN Change Request -->
+  <resource path="/UpdatePinChangeRequest" method="PUT">
+    <call-query href="UpdatePinChangeRequest">
+      <with-param name="status" query-param="status"/>
+      <with-param name="pan" query-param="pan"/>
+      <with-param name="old_pin_hash" query-param="old_pin_hash"/>
+      <with-param name="new_pin_hash" query-param="new_pin_hash"/>
+    </call-query>
+  </resource>
+
+</data>

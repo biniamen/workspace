@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<proxy name="PinChangeProxy" startOnLoad="true" transports="http https" xmlns="http://ws.apache.org/ns/synapse">
+    <target>
+        <inSequence>
+            <!-- Log the Request -->
+            <!-- Error Response -->
+            <!-- Call Data Service to Store Request -->
+        </inSequence>
+        <outSequence/>
+        <faultSequence/>
+    </target>
+</proxy>

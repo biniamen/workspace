@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<endpoint name="ValidateOldPinEndpoint" xmlns="http://ws.apache.org/ns/synapse">
+    <http method="get" uri-template="http://localhost:8290/services/PinChangeService/ValidateOldPin?pan={uri.var.pan}&amp;old_pin_hash={uri.var.old_pin_hash}">
+        <suspendOnFailure>
+            <initialDuration>1000</initialDuration>
+            <progressionFactor>1.0</progressionFactor>
+        </suspendOnFailure>
+        <markForSuspension>
+            <retriesBeforeSuspension>3</retriesBeforeSuspension>
+        </markForSuspension>
+    </http>
+</endpoint>

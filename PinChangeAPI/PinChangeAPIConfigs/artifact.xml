@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?><artifacts>
+    <artifact name="ValidateOldPinEndpoint" groupId="com.example.endpoint" version="1.0.0" type="synapse/endpoint" serverRole="EnterpriseServiceBus">
+        <file>src/main/synapse-config/endpoints/ValidateOldPinEndpoint.xml</file>
+    </artifact>
+    <artifact name="StorePinChangeRequestEndpoint" groupId="com.example.endpoint" version="1.0.0" type="synapse/endpoint" serverRole="EnterpriseServiceBus">
+        <file>src/main/synapse-config/endpoints/StorePinChangeRequestEndpoint.xml</file>
+    </artifact>
+    <artifact name="UpdatePinChangeRequestEndpoint" groupId="com.example.endpoint" version="1.0.0" type="synapse/endpoint" serverRole="EnterpriseServiceBus">
+        <file>src/main/synapse-config/endpoints/UpdatePinChangeRequestEndpoint.xml</file>
+    </artifact>
+    <artifact name="PinChangeProxy" groupId="com.example.proxy-service" version="1.0.0" type="synapse/proxy-service" serverRole="EnterpriseServiceBus">
+        <file>src/main/synapse-config/proxy-services/PinChangeProxy.xml</file>
+    </artifact>
+</artifacts>
